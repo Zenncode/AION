@@ -194,9 +194,43 @@ Labels on namespace: `environment = <env>`
 
 ```
 terraform/
-├── main.tf         # All resource definitions
-├── variables.tf    # Input variables with defaults
+├── main.tf         # VPC, EKS, RDS, MSK, IAM, IRSA, K8s resources
+├── variables.tf    # All configurable inputs with defaults
 └── outputs.tf      # Cluster endpoints, connection strings, ARNs
+
+ingestion/
+├── docker/         # Docker Compose (local dev), Debezium config
+├── flink/          # Java Flink job + Dockerfile + pom.xml
+├── spark/          # PySpark Bronze→Silver + Great Expectations
+├── k8s/            # K8s manifests (base + dev/prod overlays)
+└── airflow/        # SparkSubmitOperator DAG
+
+storage/
+├── iceberg/sql/    # Gold table DDLs + materialized views
+├── trino/          # Trino ConfigMap + K8s deployment
+└── pyiceberg/      # PyIceberg ingestion script
+
+mlops/
+├── feast/          # Feature store (feature_repo + K8s serving)
+└── kubeflow/       # Pipeline DSL + Triton + MLflow K8s
+
+copilot/
+├── app/            # FastAPI RAG pipeline (LangChain + Qdrant)
+└── k8s/            # Copilot K8s deployment + Ingress
+
+src/                # Frontend (React 18 + TypeScript + Vite)
+├── components/     # Dashboard, Copilot, DataTable, Layout
+├── graphql/        # Apollo Client queries/mutations
+└── auth/           # Keycloak integration
+
+cicd/
+├── argocd/         # Application.yaml + Project + ApplicationSet
+├── jenkins/        # Declarative Jenkinsfile
+├── kustomize/      # base/ + envs/{dev,staging,production}
+└── monitoring/     # PrometheusRule (Flink checkpoint alerts)
+
+.agent/context.md   # This file — project context for agents
+RUN.md              # Complete run guide (all subsystems)
 ```
 
 ### Providers

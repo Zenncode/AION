@@ -4,7 +4,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: debezium-connect
-  namespace: aion-ingestion
+
   labels:
     app: debezium
     app.kubernetes.io/name: debezium
@@ -75,7 +75,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: debezium
-  namespace: aion-ingestion
+
   labels:
     app: debezium
 spec:
@@ -92,7 +92,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: debezium-connector-config
-  namespace: aion-ingestion
+
 data:
   legacy-postgres-connector.json: |
     {

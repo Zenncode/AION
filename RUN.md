@@ -98,12 +98,18 @@ AION/
 │
 ├── copilot/                    # AI Copilot (FastAPI + LangChain)
 │   ├── app/                    # Python application
+│   ├── Dockerfile
 │   └── k8s/                    # K8s deployment
 │
-├── src/                        # Frontend (React + TypeScript)
-│   ├── components/             # Dashboard, Copilot, DataTable
-│   ├── graphql/                # Apollo queries/mutations
+├── src/                        # Frontend (React 18 + TypeScript + Vite)
+│   ├── components/             # Dashboard, Copilot, DataTable, Layout
+│   ├── graphql/                # Apollo queries/mutations/subscriptions
 │   └── auth/                   # Keycloak integration
+│
+├── frontend/                   # Frontend Dockerfile + nginx config + K8s
+│   ├── Dockerfile
+│   ├── nginx.conf
+│   └── k8s/                    # Frontend K8s deployment
 │
 ├── cicd/                       # CI/CD
 │   ├── argocd/                 # ArgoCD Application + Project
@@ -454,8 +460,7 @@ kubectl port-forward svc/aion-copilot 8000:8000 -n aion-copilot
 ### Local Development
 
 ```bash
-cd frontend
-
+# Frontend lives at project root
 npm install
 
 # Start dev server (proxies API calls to K8s)
@@ -468,10 +473,11 @@ npm run dev
 ```bash
 # Production build
 npm run build
-# Outputs to frontend/dist/
+# Outputs to dist/
 
-# Docker build
-docker build -t aion/frontend:latest -f Dockerfile frontend/
+# Docker build (from frontend/ directory)
+cd frontend
+docker build -t aion/frontend:latest -f Dockerfile ../
 ```
 
 ### Environment Variables

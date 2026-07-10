@@ -211,7 +211,7 @@ class SafetyGuardrail:
         system_tables = ["information_schema", "pg_catalog", "pg_tables",
                         "sys.", "mysql.", "master."]
         for table in system_tables:
-            if table in sql_lower:
+            if table in sql.lower():
                 flags.append({
                     "type": "system_table_access",
                     "severity": "high",

@@ -12,25 +12,24 @@ commonLabels:
   team: platform-engineering
 
 resources:
-  # Core namespaces
-  - ../../ingestion/k8s/base/namespace.yaml
-  - ../../ingestion/k8s/base/service-accounts.yaml
+  # Frontend
+  - ../../../frontend/k8s/frontend.yaml
 
   # Ingestion layer
-  - ../../ingestion/k8s/base/debezium.yaml
-  - ../../ingestion/k8s/base/flink.yaml
-  - ../../ingestion/k8s/base/spark.yaml
+  - ../../../ingestion/k8s/base/debezium.yaml
+  - ../../../ingestion/k8s/base/flink.yaml
+  - ../../../ingestion/k8s/base/spark.yaml
 
   # Storage layer
-  - ../../storage/trino/trino-deployment.yaml
+  - ../../../storage/trino/trino-deployment.yaml
 
   # MLOps
-  - ../../mlops/feast/k8s/feast-online-serving.yaml
-  - ../../mlops/kubeflow/k8s/mlflow-tracking.yaml
-  - ../../mlops/kubeflow/k8s/triton-deployment.yaml
+  - ../../../mlops/feast/k8s/feast-online-serving.yaml
+  - ../../../mlops/kubeflow/k8s/mlflow-tracking.yaml
+  - ../../../mlops/kubeflow/k8s/triton-deployment.yaml
 
   # Copilot
-  - ../../copilot/k8s/copilot-deployment.yaml
+  - ../../../copilot/k8s/copilot-deployment.yaml
 
 images:
   - name: aion/frontend

@@ -18,7 +18,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: triton-model-config
-  namespace: aion-inference
+
 data:
   MODEL_REPOSITORY_S3: "s3://aion-models/triton-repo/"
   AWS_REGION: "eu-west-1"
@@ -28,7 +28,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: triton-inference-server
-  namespace: aion-inference
+
   labels:
     app: triton
     app.kubernetes.io/name: triton
@@ -132,7 +132,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: triton-inference-server
-  namespace: aion-inference
+
   labels:
     app: triton
 spec:
@@ -155,7 +155,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: triton-hpa
-  namespace: aion-inference
+
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -180,7 +180,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: triton-pdb
-  namespace: aion-inference
+
 spec:
   minAvailable: 1
   selector:
@@ -192,7 +192,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: triton-scheduling
-  namespace: aion-inference
+
 data:
   node-selector: "nvidia.com/gpu.present=true"
   toleration: "nvidia.com/gpu:NoSchedule"

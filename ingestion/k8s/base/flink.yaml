@@ -4,7 +4,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: flink-jobmanager
-  namespace: aion-ingestion
+
   labels:
     app: flink
     component: jobmanager
@@ -67,7 +67,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: flink-jobmanager
-  namespace: aion-ingestion
+
   labels:
     app: flink
     component: jobmanager
@@ -88,7 +88,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: flink-taskmanager
-  namespace: aion-ingestion
+
   labels:
     app: flink
     component: taskmanager
@@ -144,7 +144,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: flink-taskmanager-pdb
-  namespace: aion-ingestion
+
 spec:
   minAvailable: 1
   selector:
