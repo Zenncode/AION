@@ -1,0 +1,51 @@
+---
+# =============================================================================
+# AION Kustomize Base — Shared Resources
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+commonLabels:
+  app.kubernetes.io/managed-by: kustomize
+  app.kubernetes.io/part-of: aion
+  team: platform-engineering
+
+resources:
+  # Core namespaces
+  - ../../ingestion/k8s/base/namespace.yaml
+  - ../../ingestion/k8s/base/service-accounts.yaml
+
+  # Ingestion layer
+  - ../../ingestion/k8s/base/debezium.yaml
+  - ../../ingestion/k8s/base/flink.yaml
+  - ../../ingestion/k8s/base/spark.yaml
+
+  # Storage layer
+  - ../../storage/trino/trino-deployment.yaml
+
+  # MLOps
+  - ../../mlops/feast/k8s/feast-online-serving.yaml
+  - ../../mlops/kubeflow/k8s/mlflow-tracking.yaml
+  - ../../mlops/kubeflow/k8s/triton-deployment.yaml
+
+  # Copilot
+  - ../../copilot/k8s/copilot-deployment.yaml
+
+images:
+  - name: aion/frontend
+    newName: 000000000000.dkr.ecr.eu-west-1.amazonaws.com/aion/frontend
+    newTag: latest
+  - name: aion/copilot
+    newName: 000000000000.dkr.ecr.eu-west-1.amazonaws.com/aion/copilot
+    newTag: latest
+  - name: aion/flink
+    newName: 000000000000.dkr.ecr.eu-west-1.amazonaws.com/aion/flink
+    newTag: latest
+
+configMapGenerator:
+  - name: aion-platform-config
+    literals:
+      - ENVIRONMENT=dev
+      - AWS_REGION=eu-west-1
+      - LOG_LEVEL=INFO

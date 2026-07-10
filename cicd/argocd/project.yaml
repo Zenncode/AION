@@ -1,0 +1,44 @@
+---
+# =============================================================================
+# ArgoCD Application Project — Restricted to AION repos
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: aion-platform
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: AION platform services — all environments
+  sourceRepos:
+    - 'https://github.com/aion-platform/aion-gitops.git'
+    - 'https://github.com/aion-platform/aion-frontend.git'
+    - 'https://github.com/aion-platform/aion-copilot.git'
+  destinations:
+    - namespace: aion-dev
+      server: https://kubernetes.default.svc
+    - namespace: aion-staging
+      server: https://kubernetes.default.svc
+    - namespace: aion-production
+      server: https://kubernetes.default.svc
+    - namespace: aion-mlops
+      server: https://kubernetes.default.svc
+    - namespace: aion-ingestion
+      server: https://kubernetes.default.svc
+    - namespace: aion-analytics
+      server: https://kubernetes.default.svc
+    - namespace: aion-inference
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRole
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  orphanedResources:
+    warn: true
+  signatureKeys:
+    - keyid: GPG_KEY_ID_PLACEHOLDER

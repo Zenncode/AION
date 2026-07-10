@@ -1,0 +1,148 @@
+---
+# =============================================================================
+# AION ArgoCD Application — Multi-Service GitOps
+# =============================================================================
+# Auto-syncs every 5 minutes, self-heals, prunes orphaned resources
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aion-platform
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: aion
+    app.kubernetes.io/managed-by: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/aion-platform/aion-gitops.git
+    targetRevision: main
+    path: kustomize/envs/production
+
+    # Kustomize-specific parameters
+    kustomize:
+      images:
+        - aion/frontend=ecr.aws/aion/frontend:${ARGOCD_APP_REVISION}
+        - aion/copilot=ecr.aws/aion/copilot:${ARGOCD_APP_REVISION}
+        - aion/flink=ecr.aws/aion/flink:${ARGOCD_APP_REVISION}
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: aion-production
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Ignore differences that are managed outside GitOps (e.g., HPA)
+  ignoreDifferences:
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+      jsonPointers:
+        - /spec/metrics
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+
+  info:
+    - name: team
+      value: platform-engineering
+    - name: sync-schedule
+      value: "every-5-minutes"
+---
+# =============================================================================
+# ApplicationSet — Dev / Staging / Production
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: aion-environments
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - env: dev
+            cluster: https://kubernetes.default.svc
+            revision: develop
+            namespace: aion-dev
+            autoSync: "false"
+          - env: staging
+            cluster: https://kubernetes.default.svc
+            revision: main
+            namespace: aion-staging
+            autoSync: "true"
+          - env: production
+            cluster: https://kubernetes.default.svc
+            revision: main
+            namespace: aion-production
+            autoSync: "true"
+
+  template:
+    metadata:
+      name: 'aion-{{env}}'
+      namespace: argocd
+      labels:
+        app.kubernetes.io/part-of: aion
+        environment: '{{env}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/aion-platform/aion-gitops.git
+        targetRevision: '{{revision}}'
+        path: 'kustomize/envs/{{env}}'
+      destination:
+        server: '{{cluster}}'
+        namespace: '{{namespace}}'
+      syncPolicy:
+        automated:
+          prune: '{{autoSync}}'
+          selfHeal: '{{autoSync}}'
+        syncOptions:
+          - CreateNamespace=true
+---
+# =============================================================================
+# AppProject — RBAC for AION
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: aion
+  namespace: argocd
+spec:
+  description: AION Platform project
+  sourceRepos:
+    - 'https://github.com/aion-platform/aion-gitops.git'
+  destinations:
+    - namespace: aion-dev
+      server: https://kubernetes.default.svc
+    - namespace: aion-staging
+      server: https://kubernetes.default.svc
+    - namespace: aion-production
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  orphanedResources:
+    warn: true

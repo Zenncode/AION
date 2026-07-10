@@ -1,0 +1,198 @@
+---
+# =============================================================================
+# AION Triton Inference Server — Kubernetes Deployment
+# =============================================================================
+# Serves ONNX models (churn prediction) with GPU acceleration
+# =============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aion-inference
+  labels:
+    app.kubernetes.io/part-of: aion
+    app.kubernetes.io/component: inference
+---
+# S3 Model Repository ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: triton-model-config
+  namespace: aion-inference
+data:
+  MODEL_REPOSITORY_S3: "s3://aion-models/triton-repo/"
+  AWS_REGION: "eu-west-1"
+---
+# Triton Inference Server
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triton-inference-server
+  namespace: aion-inference
+  labels:
+    app: triton
+    app.kubernetes.io/name: triton
+    app.kubernetes.io/component: inference
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: triton
+  template:
+    metadata:
+      labels:
+        app: triton
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8002"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: triton-serving
+      containers:
+        - name: triton
+          image: nvcr.io/nvidia/tritonserver:24.01-py3
+          args:
+            - "tritonserver"
+            - "--model-repository=s3://aion-models/triton-repo/"
+            - "--log-verbose=1"
+            - "--strict-model-config=false"
+            - "--strict-readiness=false"
+            - "--http-port=8000"
+            - "--grpc-port=8001"
+            - "--metrics-port=8002"
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 8001
+              name: grpc
+            - containerPort: 8002
+              name: metrics
+          env:
+            - name: AWS_DEFAULT_REGION
+              value: "eu-west-1"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aion-aws-credentials
+                  key: access-key-id
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aion-aws-credentials
+                  key: secret-access-key
+                  optional: true
+            - name: S3_ENDPOINT_URL
+              value: "https://s3.eu-west-1.amazonaws.com"
+            - name: CUDA_VISIBLE_DEVICES
+              value: "0,1"
+          resources:
+            requests:
+              cpu: "4"
+              memory: "16Gi"
+              nvidia.com/gpu: "2"
+            limits:
+              cpu: "8"
+              memory: "32Gi"
+              nvidia.com/gpu: "2"
+          readinessProbe:
+            httpGet:
+              path: /v2/health/ready
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /v2/health/live
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /v2/health/live
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+          volumeMounts:
+            - name: shm
+              mountPath: /dev/shm
+      volumes:
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: triton-inference-server
+  namespace: aion-inference
+  labels:
+    app: triton
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: http
+      name: http
+    - port: 8001
+      targetPort: grpc
+      name: grpc
+    - port: 8002
+      targetPort: metrics
+      name: metrics
+  selector:
+    app: triton
+---
+# HPA for Triton
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: triton-hpa
+  namespace: aion-inference
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: triton-inference-server
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: nvidia.com/gpu
+        target:
+          type: Utilization
+          averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 120
+    scaleDown:
+      stabilizationWindowSeconds: 300
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: triton-pdb
+  namespace: aion-inference
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: triton
+---
+# GPU Node Affinity — ensures pods land on GPU nodes
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: triton-scheduling
+  namespace: aion-inference
+data:
+  node-selector: "nvidia.com/gpu.present=true"
+  toleration: "nvidia.com/gpu:NoSchedule"

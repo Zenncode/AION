@@ -1,0 +1,229 @@
+---
+# =============================================================================
+# AION Prometheus Rules — Alert Manager Configuration
+# =============================================================================
+# Flink checkpointing failure, service health, SLO violations
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: aion-flink-alerts
+  namespace: aion-mlops
+  labels:
+    app.kubernetes.io/part-of: aion
+    app.kubernetes.io/component: monitoring
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    # =====================================================================
+    # Flink Alerts
+    # =====================================================================
+    - name: aion.flink.checkpointing
+      rules:
+        # --- CRITICAL: Checkpoint failure > 5 minutes → PagerDuty ---
+        - alert: FlinkCheckpointFailureCritical
+          expr: |
+            (
+              flink_jobmanager_job_numberOfFailedCheckpoints > 0
+              or
+              increase(flink_jobmanager_job_numberOfFailedCheckpoints[5m]) > 0
+            )
+            and
+            flink_jobmanager_job_uptime > 300
+          for: 5m
+          labels:
+            severity: critical
+            team: data-engineering
+            service: flink
+            pagerduty: "true"
+          annotations:
+            summary: "Flink checkpointing failing for >5 minutes"
+            description: >
+              Job {{ $labels.job_name }} has {{ $value }} failed checkpoint(s)
+              over the last 5 minutes. This indicates potential state corruption
+              or storage issues. Immediate investigation required.
+            runbook_url: "https://wiki.aion.internal/runbooks/flink-checkpoint-failure"
+            dashboard_url: "https://grafana.aion.internal/d/flink-overview"
+
+        # --- WARNING: Checkpoint duration increasing ---
+        - alert: FlinkCheckpointDurationWarning
+          expr: |
+            flink_jobmanager_job_lastCheckpointDuration > 60000
+          for: 10m
+          labels:
+            severity: warning
+            team: data-engineering
+            service: flink
+          annotations:
+            summary: "Flink checkpoint duration exceeds 60 seconds"
+            description: >
+              Job {{ $labels.job_name }} checkpoint taking {{ $value | humanizeDuration }}.
+              May indicate backpressure or large state size.
+
+        # --- CRITICAL: No checkpoints in 15 minutes ---
+        - alert: FlinkNoCheckpoints
+          expr: |
+            time() - flink_jobmanager_job_lastCheckpointTimestamp > 900
+            and
+            flink_jobmanager_job_uptime > 300
+          for: 5m
+          labels:
+            severity: critical
+            team: data-engineering
+            service: flink
+            pagerduty: "true"
+          annotations:
+            summary: "Flink job has not checkpointed in 15 minutes"
+            description: >
+              Job {{ $labels.job_name }} last checkpoint was {{ $value | humanizeDuration }} ago.
+              Checkpointing may be stalled or disabled.
+
+        # --- WARNING: Backpressure detected ---
+        - alert: FlinkBackpressureHigh
+          expr: |
+            flink_taskmanager_job_task_backpressuredTimePerSecond
+            /
+            flink_taskmanager_job_task_busyTimePerSecond > 0.8
+          for: 5m
+          labels:
+            severity: warning
+            team: data-engineering
+            service: flink
+          annotations:
+            summary: "Flink backpressure >80% on task"
+            description: >
+              Task {{ $labels.task_name }} in job {{ $labels.job_name }}
+              is heavily backpressured ({{ $value | humanizePercentage }}).
+
+        # --- CRITICAL: Flink job down ---
+        - alert: FlinkJobDown
+          expr: |
+            flink_jobmanager_job_uptime == 0
+            or
+            absent(flink_jobmanager_job_uptime)
+          for: 2m
+          labels:
+            severity: critical
+            team: data-engineering
+            service: flink
+            pagerduty: "true"
+          annotations:
+            summary: "Flink job {{ $labels.job_name }} is DOWN"
+            description: >
+              The Flink job {{ $labels.job_name }} is not reporting metrics.
+              It may have failed or been cancelled.
+
+    # =====================================================================
+    # Service Health Alerts
+    # =====================================================================
+    - name: aion.service.health
+      rules:
+        - alert: AionCopilotDown
+          expr: |
+            up{job="aion-copilot"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+            pagerduty: "true"
+          annotations:
+            summary: "AION Copilot API is down"
+            description: "Copilot endpoint unreachable for >2 minutes."
+
+        - alert: AionCopilotHighLatency
+          expr: |
+            histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{service="aion-copilot"}[5m])) > 5
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Copilot P95 latency >5 seconds"
+            description: "P95 response time is {{ $value | humanizeDuration }}."
+
+        - alert: TrinoClusterDegraded
+          expr: |
+            absent(up{job="trino-coordinator"})
+            or
+            count(up{job="trino-worker"} == 1) < 2
+          for: 3m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Trino cluster has fewer than 2 healthy workers"
+
+        - alert: FeastServingDown
+          expr: |
+            up{job="feast-online-serving"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: ml-engineering
+            pagerduty: "true"
+          annotations:
+            summary: "Feast Online Serving is down — ML feature lookups failing"
+
+    # =====================================================================
+    # SLO Alerts
+    # =====================================================================
+    - name: aion.slo
+      rules:
+        - alert: AIONErrorBudgetBurnHigh
+          expr: |
+            (
+              sum(rate(http_requests_total{status=~"5..", service="aion-copilot"}[1h]))
+              /
+              sum(rate(http_requests_total{service="aion-copilot"}[1h]))
+            ) > (14.4 * 0.001)
+          for: 1h
+          labels:
+            severity: critical
+            team: platform
+            pagerduty: "true"
+          annotations:
+            summary: "AION error budget burning 14.4x faster than allowed"
+            description: >
+              At current burn rate, the 30-day error budget will be exhausted
+              in fewer than 24 hours.
+
+    # =====================================================================
+    # Infrastructure Alerts
+    # =====================================================================
+    - name: aion.infrastructure
+      rules:
+        - alert: AIONKafkaConsumerLagHigh
+          expr: |
+            kafka_consumergroup_lag_sum > 100000
+          for: 10m
+          labels:
+            severity: warning
+            team: data-engineering
+          annotations:
+            summary: "Kafka consumer lag >100K messages"
+            description: >
+              Consumer group {{ $labels.consumergroup }} on topic
+              {{ $labels.topic }} has {{ $value }} messages of lag.
+
+        - alert: AIONRDSConnectionsHigh
+          expr: |
+            rds_database_connections > 80
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "RDS connection count >80"
+            description: "PostgreSQL connections at {{ $value }} (max 100)."
+
+        - alert: AIONDiskSpaceLow
+          expr: |
+            (kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes) < 0.15
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "PersistentVolume {{ $labels.persistentvolumeclaim }} below 15% free"

@@ -1,0 +1,352 @@
+---
+# =============================================================================
+# AION Feast Online Serving — Kubernetes Deployment
+# =============================================================================
+# Redis-backed online feature server with hourly materialization CronJob
+# =============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aion-mlops
+  labels:
+    app.kubernetes.io/part-of: aion
+    app.kubernetes.io/component: feature-store
+---
+# Redis Online Store
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: feast-redis
+  namespace: aion-mlops
+  labels:
+    app: feast-redis
+spec:
+  serviceName: feast-redis
+  replicas: 3
+  selector:
+    matchLabels:
+      app: feast-redis
+  template:
+    metadata:
+      labels:
+        app: feast-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.2-alpine
+          ports:
+            - containerPort: 6379
+              name: redis
+          command: ["redis-server"]
+          args:
+            - "--maxmemory"
+            - "4gb"
+            - "--maxmemory-policy"
+            - "allkeys-lru"
+            - "--save"
+            - "60"
+            - "1000"
+            - "--appendonly"
+            - "yes"
+            - "--appendfsync"
+            - "everysec"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "2Gi"
+            limits:
+              cpu: "2"
+              memory: "5Gi"
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: gp3
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: feast-redis
+  namespace: aion-mlops
+spec:
+  clusterIP: None
+  selector:
+    app: feast-redis
+  ports:
+    - port: 6379
+      targetPort: redis
+      name: redis
+---
+# Feast Online Serving Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feast-online-serving
+  namespace: aion-mlops
+  labels:
+    app: feast-online-serving
+    app.kubernetes.io/name: feast
+    app.kubernetes.io/component: online-serving
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: feast-online-serving
+  template:
+    metadata:
+      labels:
+        app: feast-online-serving
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: feast-serving
+      containers:
+        - name: feast-serving
+          image: feastdev/feature-server:0.37.0
+          ports:
+            - containerPort: 6566
+              name: grpc
+              protocol: TCP
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: FEAST_PROJECT_NAME
+              value: "aion"
+            - name: FEAST_REGISTRY_TYPE
+              value: "s3"
+            - name: FEAST_REGISTRY_PATH
+              value: "s3://aion-feast-registry/registry.db"
+            - name: FEAST_REGISTRY_S3_REGION
+              value: "eu-west-1"
+            - name: FEAST_ONLINE_STORE_TYPE
+              value: "redis"
+            - name: FEAST_ONLINE_STORE_CONNECTION_STRING
+              value: "feast-redis.aion-mlops.svc.cluster.local:6379,0"
+            - name: FEAST_ONLINE_STORE_KEY_PREFIX
+              value: "feast:aion:"
+            - name: FEAST_SERVING_HOST
+              value: "0.0.0.0"
+            - name: FEAST_SERVING_PORT
+              value: "6566"
+            - name: FEAST_LOG_LEVEL
+              value: "INFO"
+            - name: FEAST_FEATURE_SERVER_PYTHON_FEATURE_LOG_LEVEL
+              value: "WARNING"
+            # AWS credentials (from IRSA)
+            - name: AWS_DEFAULT_REGION
+              value: "eu-west-1"
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          livenessProbe:
+            grpc:
+              port: 6566
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            grpc:
+              port: 6566
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 3
+          startupProbe:
+            grpc:
+              port: 6566
+            failureThreshold: 30
+            periodSeconds: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: feast-online-serving
+  namespace: aion-mlops
+  labels:
+    app: feast-online-serving
+spec:
+  type: ClusterIP
+  selector:
+    app: feast-online-serving
+  ports:
+    - port: 6566
+      targetPort: grpc
+      name: grpc
+    - port: 8080
+      targetPort: http
+      name: http
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: feast-serving-pdb
+  namespace: aion-mlops
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: feast-online-serving
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: feast-serving-hpa
+  namespace: aion-mlops
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: feast-online-serving
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+---
+# =============================================================================
+# Materialization CronJob — runs every hour
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: feast-materializer
+  namespace: aion-mlops
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/aion-production-feast-materializer
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: feast-materialize
+  namespace: aion-mlops
+  labels:
+    app: feast-materialize
+spec:
+  schedule: "0 * * * *"   # Every hour
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800   # 30-minute timeout
+      template:
+        metadata:
+          labels:
+            app: feast-materialize
+        spec:
+          serviceAccountName: feast-materializer
+          restartPolicy: OnFailure
+          containers:
+            - name: feast-materialize
+              image: feastdev/feature-server:0.37.0
+              command: ["feast", "materialize"]
+              args:
+                - "--feature-view"
+                - "user_activity_features"
+                - "--start"
+                - "2024-01-01T00:00:00"
+                - "--end"
+                - "$(CURRENT_TIME)"
+                - "--registry-config"
+                - "/etc/feast/feature_store.yaml"
+              env:
+                - name: FEAST_PROJECT_NAME
+                  value: "aion"
+                - name: FEAST_REGISTRY_TYPE
+                  value: "s3"
+                - name: FEAST_REGISTRY_PATH
+                  value: "s3://aion-feast-registry/registry.db"
+                - name: FEAST_REGISTRY_S3_REGION
+                  value: "eu-west-1"
+                - name: FEAST_ONLINE_STORE_TYPE
+                  value: "redis"
+                - name: FEAST_ONLINE_STORE_CONNECTION_STRING
+                  value: "feast-redis.aion-mlops.svc.cluster.local:6379,0"
+                - name: FEAST_ONLINE_STORE_KEY_PREFIX
+                  value: "feast:aion:"
+                - name: AWS_DEFAULT_REGION
+                  value: "eu-west-1"
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "1Gi"
+                limits:
+                  cpu: "2"
+                  memory: "2Gi"
+              volumeMounts:
+                - name: feast-config
+                  mountPath: /etc/feast
+                  readOnly: true
+          volumes:
+            - name: feast-config
+              configMap:
+                name: feast-config
+---
+# ConfigMap for materialization
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: feast-config
+  namespace: aion-mlops
+data:
+  feature_store.yaml: |
+    project: aion
+    provider: aws
+    registry: s3://aion-feast-registry/registry.db
+    online_store:
+      type: redis
+      connection_string: "feast-redis.aion-mlops.svc.cluster.local:6379,0"
+      key_prefix: "feast:aion:"
+    offline_store:
+      type: glue
+      region: eu-west-1
+      database: aion

@@ -1,0 +1,140 @@
+---
+# =============================================================================
+# AION MLflow Tracking Server — Kubernetes Deployment
+# =============================================================================
+# Backed by S3 (artifact store) + PostgreSQL (metadata store)
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow-tracking
+  namespace: aion-mlops
+  labels:
+    app: mlflow
+    component: tracking
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+    spec:
+      serviceAccountName: mlflow-server
+      containers:
+        - name: mlflow
+          image: ghcr.io/mlflow/mlflow:v2.9.0
+          command: ["mlflow", "server"]
+          args:
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "5000"
+            - "--backend-store-uri"
+            - "postgresql://mlflow:${MLFLOW_DB_PASSWORD}@postgresql.aion-data.svc.cluster.local:5432/mlflow"
+            - "--default-artifact-root"
+            - "s3://aion-mlflow-artifacts/"
+            - "--serve-artifacts"
+          ports:
+            - containerPort: 5000
+              name: http
+          env:
+            - name: MLFLOW_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aion-postgres-credentials
+                  key: password
+            - name: AWS_DEFAULT_REGION
+              value: "eu-west-1"
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow
+  namespace: aion-mlops
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5000
+      targetPort: http
+      name: http
+  selector:
+    app: mlflow
+---
+# Feast Serving Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feast-online-serving
+  namespace: aion-mlops
+  labels:
+    app: feast-online-serving
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: feast-online-serving
+  template:
+    metadata:
+      labels:
+        app: feast-online-serving
+    spec:
+      containers:
+        - name: feast-serving
+          image: feastdev/feature-server:0.37.0
+          ports:
+            - containerPort: 6566
+              name: grpc
+          env:
+            - name: FEAST_PROJECT_NAME
+              value: "aion"
+            - name: FEAST_REGISTRY_TYPE
+              value: "s3"
+            - name: FEAST_REGISTRY_PATH
+              value: "s3://aion-feast-registry/registry.db"
+            - name: FEAST_ONLINE_STORE_TYPE
+              value: "redis"
+            - name: FEAST_ONLINE_STORE_CONNECTION_STRING
+              value: "feast-redis.aion-mlops.svc.cluster.local:6379,0"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "1"
+              memory: "2Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: feast-online-serving
+  namespace: aion-mlops
+spec:
+  ports:
+    - port: 6566
+      targetPort: grpc
+      name: grpc
+  selector:
+    app: feast-online-serving

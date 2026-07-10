@@ -1,0 +1,293 @@
+// =============================================================================
+// AION CI/CD Pipeline — Declarative Jenkins
+// =============================================================================
+// Builds Frontend, Copilot, and Flink images → ECR → Kustomize tag override
+// =============================================================================
+
+pipeline {
+    agent {
+        kubernetes {
+            yaml '''
+                apiVersion: v1
+                kind: Pod
+                spec:
+                  containers:
+                    - name: docker
+                      image: docker:24-dind
+                      securityContext:
+                        privileged: true
+                      env:
+                        - name: DOCKER_TLS_CERTDIR
+                          value: ""
+                    - name: kubectl
+                      image: bitnami/kubectl:1.29
+                      command: ['sleep']
+                      args: ['infinity']
+                    - name: kustomize
+                      image: ghcr.io/kustomize/kustomize:v5.3.0
+                      command: ['sleep']
+                      args: ['infinity']
+            '''
+        }
+    }
+
+    options {
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+    }
+
+    environment {
+        AWS_REGION    = 'eu-west-1'
+        ECR_REGISTRY  = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ECR_REPO_BASE = "${ECR_REGISTRY}/aion"
+        GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+        IMAGE_TAG     = "${env.BUILD_NUMBER}-${env.GIT_COMMIT_SHORT}"
+        K8S_NAMESPACE = 'aion-production'
+    }
+
+    parameters {
+        choice(name: 'ENVIRONMENT', choices: ['dev', 'staging', 'production'], description: 'Target environment')
+        booleanParam(name: 'BUILD_FRONTEND', defaultValue: true, description: 'Build Frontend image')
+        booleanParam(name: 'BUILD_COPILOT', defaultValue: true, description: 'Build Copilot API image')
+        booleanParam(name: 'BUILD_FLINK', defaultValue: true, description: 'Build Flink job image')
+        booleanParam(name: 'DEPLOY', defaultValue: false, description: 'Deploy via ArgoCD after build')
+    }
+
+    stages {
+        // =====================================================================
+        // Stage 1: Checkout & Validation
+        // =====================================================================
+        stage('Checkout') {
+            steps {
+                checkout scm
+                script {
+                    env.GIT_COMMIT_MSG = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                    echo "Building commit: ${env.GIT_COMMIT_SHORT}"
+                    echo "Message: ${env.GIT_COMMIT_MSG}"
+                }
+            }
+        }
+
+        stage('Validate') {
+            parallel {
+                stage('Lint Frontend') {
+                    when { expression { params.BUILD_FRONTEND } }
+                    steps {
+                        dir('frontend') {
+                            sh 'npm ci'
+                            sh 'npm run lint'
+                            sh 'npm run type-check'
+                        }
+                    }
+                }
+                stage('Lint Copilot') {
+                    when { expression { params.BUILD_COPILOT } }
+                    steps {
+                        dir('copilot') {
+                            sh 'pip install ruff mypy'
+                            sh 'ruff check app/'
+                            sh 'mypy app/ --ignore-missing-imports'
+                        }
+                    }
+                }
+                stage('Lint Flink') {
+                    when { expression { params.BUILD_FLINK } }
+                    steps {
+                        dir('ingestion/flink') {
+                            sh 'mvn validate -B'
+                        }
+                    }
+                }
+            }
+        }
+
+        // =====================================================================
+        // Stage 2: Build & Push Docker Images to ECR
+        // =====================================================================
+        stage('ECR Login') {
+            steps {
+                container('docker') {
+                    withAWS(credentials: 'aion-aws-credentials', region: env.AWS_REGION) {
+                        sh """
+                            aws ecr get-login-password --region ${AWS_REGION} |
+                            docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Build Images') {
+            parallel {
+                stage('Build Frontend') {
+                    when { expression { params.BUILD_FRONTEND } }
+                    steps {
+                        container('docker') {
+                            script {
+                                def image = "${ECR_REPO_BASE}/frontend:${IMAGE_TAG}"
+                                sh """
+                                    docker build \
+                                        --build-arg VITE_API_URL=https://api.aion.internal \
+                                        --label git.commit=${GIT_COMMIT_SHORT} \
+                                        --label build.number=${BUILD_NUMBER} \
+                                        -t ${image} \
+                                        -t ${ECR_REPO_BASE}/frontend:latest \
+                                        -f frontend/Dockerfile \
+                                        frontend/
+                                    docker push ${image}
+                                    docker push ${ECR_REPO_BASE}/frontend:latest
+                                """
+                                env.FRONTEND_IMAGE = image
+                            }
+                        }
+                    }
+                }
+
+                stage('Build Copilot') {
+                    when { expression { params.BUILD_COPILOT } }
+                    steps {
+                        container('docker') {
+                            script {
+                                def image = "${ECR_REPO_BASE}/copilot:${IMAGE_TAG}"
+                                sh """
+                                    docker build \
+                                        --label git.commit=${GIT_COMMIT_SHORT} \
+                                        --label build.number=${BUILD_NUMBER} \
+                                        -t ${image} \
+                                        -t ${ECR_REPO_BASE}/copilot:latest \
+                                        -f copilot/Dockerfile \
+                                        copilot/
+                                    docker push ${image}
+                                    docker push ${ECR_REPO_BASE}/copilot:latest
+                                """
+                                env.COPILOT_IMAGE = image
+                            }
+                        }
+                    }
+                }
+
+                stage('Build Flink') {
+                    when { expression { params.BUILD_FLINK } }
+                    steps {
+                        container('docker') {
+                            script {
+                                def image = "${ECR_REPO_BASE}/flink:${IMAGE_TAG}"
+                                sh """
+                                    docker build \
+                                        --label git.commit=${GIT_COMMIT_SHORT} \
+                                        --label build.number=${BUILD_NUMBER} \
+                                        -t ${image} \
+                                        -t ${ECR_REPO_BASE}/flink:latest \
+                                        -f ingestion/flink/Dockerfile \
+                                        ingestion/flink/
+                                    docker push ${image}
+                                    docker push ${ECR_REPO_BASE}/flink:latest
+                                """
+                                env.FLINK_IMAGE = image
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // =====================================================================
+        // Stage 3: Update Kustomize Image Tags
+        // =====================================================================
+        stage('Update Kustomize') {
+            steps {
+                container('kustomize') {
+                    script {
+                        def envDir = "cicd/kustomize/envs/${params.ENVIRONMENT}"
+                        sh """
+                            cd ${envDir}
+                            kustomize edit set image \
+                                aion/frontend=${ECR_REPO_BASE}/frontend:${IMAGE_TAG} \
+                                aion/copilot=${ECR_REPO_BASE}/copilot:${IMAGE_TAG} \
+                                aion/flink=${ECR_REPO_BASE}/flink:${IMAGE_TAG}
+                        """
+                    }
+                }
+            }
+        }
+
+        // =====================================================================
+        // Stage 4: Commit Updated Tags Back to Git
+        // =====================================================================
+        stage('Commit Tags') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'git-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
+                    sh """
+                        git config user.email "jenkins@aion.internal"
+                        git config user.name "AION CI"
+                        git add cicd/kustomize/envs/${params.ENVIRONMENT}/kustomization.yaml
+                        git diff --cached --quiet || \
+                            git commit -m "ci: update image tags to ${IMAGE_TAG} [${params.ENVIRONMENT}]" && \
+                            git push https://${GIT_USER}:${GIT_PASS}@github.com/aion-platform/aion-gitops.git main
+                    """
+                }
+            }
+        }
+
+        // =====================================================================
+        // Stage 5: Deploy via ArgoCD (optional)
+        // =====================================================================
+        stage('ArgoCD Sync') {
+            when { expression { params.DEPLOY } }
+            steps {
+                container('kubectl') {
+                    withCredentials([file(credentialsId: 'argocd-token', variable: 'ARGOCD_TOKEN')]) {
+                        sh """
+                            argocd app sync aion-${params.ENVIRONMENT} \
+                                --revision ${env.GIT_COMMIT_SHORT} \
+                                --timeout 300 \
+                                --force
+                            argocd app wait aion-${params.ENVIRONMENT} \
+                                --health \
+                                --timeout 600
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                slackSend(
+                    channel: '#aion-ci',
+                    color: 'good',
+                    message: """
+                        :white_check_mark: *AION Build Succeeded*
+                        *Environment:* ${params.ENVIRONMENT}
+                        *Images:* `${IMAGE_TAG}`
+                        *Commit:* `${GIT_COMMIT_SHORT}`
+                        *Message:* ${env.GIT_COMMIT_MSG}
+                        <${env.BUILD_URL}|View Build>
+                    """.stripIndent()
+                )
+            }
+        }
+        failure {
+            script {
+                slackSend(
+                    channel: '#aion-ci',
+                    color: 'danger',
+                    message: """
+                        :x: *AION Build Failed*
+                        *Environment:* ${params.ENVIRONMENT}
+                        *Commit:* `${GIT_COMMIT_SHORT}`
+                        *Message:* ${env.GIT_COMMIT_MSG}
+                        <${env.BUILD_URL}|View Build>
+                    """.stripIndent()
+                )
+            }
+        }
+        always {
+            cleanWs()
+        }
+    }
+}

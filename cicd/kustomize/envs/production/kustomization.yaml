@@ -1,0 +1,197 @@
+---
+# =============================================================================
+# AION Kustomize — Production Environment
+# =============================================================================
+# Full resources, high availability, WARN logging, PDBs active
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: aion-production
+
+namePrefix: prod-
+
+commonLabels:
+  environment: production
+
+resources:
+  - ../../base
+
+patches:
+  # --- Frontend ---
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 512Mi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 1Gi
+
+  # --- Copilot ---
+  - target:
+      kind: Deployment
+      name: copilot
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "1"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 2Gi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "4"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 4Gi
+
+  # --- Flink JobManager ---
+  - target:
+      kind: Deployment
+      name: flink-jobmanager
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "2"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 4Gi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 6Gi
+
+  # --- Flink TaskManager ---
+  - target:
+      kind: Deployment
+      name: flink-taskmanager
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 4
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "2"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 8Gi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "4"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 10Gi
+
+  # --- Spark Workers ---
+  - target:
+      kind: Deployment
+      name: spark-worker
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 4
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "2"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 8Gi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "4"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 10Gi
+
+  # --- Trino Workers ---
+  - target:
+      kind: Deployment
+      name: trino-worker
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "2"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 6Gi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "4"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 8Gi
+
+  # --- Debezium ---
+  - target:
+      kind: Deployment
+      name: debezium-connect
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "1"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 2Gi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "4"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 4Gi
+
+  # --- Redis ---
+  - target:
+      kind: StatefulSet
+      name: feast-redis
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 4Gi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 5Gi
+
+  # --- Triton (GPU) ---
+  - target:
+      kind: Deployment
+      name: triton-inference-server
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 16Gi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 32Gi
+
+configMapGenerator:
+  - name: aion-platform-config
+    behavior: merge
+    literals:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=WARN
+      - FLINK_PARALLELISM=8
+      - FLINK_CHECKPOINT_INTERVAL=60000
