@@ -1,0 +1,273 @@
+---
+# =============================================================================
+# AION Trino Coordinator + Workers
+# =============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aion-analytics
+  labels:
+    app.kubernetes.io/part-of: aion
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: trino
+  namespace: aion-analytics
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/aion-production-s3-access
+---
+# Coordinator
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trino-coordinator
+  namespace: aion-analytics
+  labels:
+    app: trino
+    component: coordinator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trino
+      component: coordinator
+  template:
+    metadata:
+      labels:
+        app: trino
+        component: coordinator
+    spec:
+      serviceAccountName: trino
+      containers:
+        - name: trino
+          image: trinodb/trino:439
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 8443
+              name: https
+          env:
+            - name: ENVIRONMENT
+              value: production
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aion-aws-credentials
+                  key: access-key-id
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aion-aws-credentials
+                  key: secret-access-key
+                  optional: true
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aion-postgres-credentials
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aion-postgres-credentials
+                  key: password
+          volumeMounts:
+            - name: config
+              mountPath: /etc/trino/catalog
+              readOnly: true
+            - name: jvm-config
+              mountPath: /etc/trino/jvm.config
+              subPath: jvm.config
+              readOnly: true
+            - name: trino-config
+              mountPath: /etc/trino/config.properties
+              subPath: config.properties
+              readOnly: true
+            - name: log-config
+              mountPath: /etc/trino/log.properties
+              subPath: log.properties
+              readOnly: true
+          resources:
+            requests:
+              cpu: "2"
+              memory: "6Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+          livenessProbe:
+            httpGet:
+              path: /v1/status
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /v1/status
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: trino-config
+            items:
+              - key: catalog-iceberg.properties
+                path: iceberg.properties
+              - key: catalog-postgres.properties
+                path: postgresql.properties
+              - key: catalog-kafka.properties
+                path: kafka.properties
+        - name: jvm-config
+          configMap:
+            name: trino-config
+            items:
+              - key: jvm.config
+                path: jvm.config
+        - name: trino-config
+          configMap:
+            name: trino-config
+            items:
+              - key: config.properties
+                path: config.properties
+        - name: log-config
+          configMap:
+            name: trino-config
+            items:
+              - key: log.properties
+                path: log.properties
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trino-coordinator
+  namespace: aion-analytics
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: http
+      name: http
+    - port: 8443
+      targetPort: https
+      name: https
+  selector:
+    app: trino
+    component: coordinator
+---
+# Workers
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trino-worker
+  namespace: aion-analytics
+  labels:
+    app: trino
+    component: worker
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: trino
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: trino
+        component: worker
+    spec:
+      serviceAccountName: trino
+      containers:
+        - name: trino
+          image: trinodb/trino:439
+          args: ["--etc-files=/etc/trino/*"]
+          env:
+            - name: ENVIRONMENT
+              value: production
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aion-aws-credentials
+                  key: access-key-id
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aion-aws-credentials
+                  key: secret-access-key
+                  optional: true
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aion-postgres-credentials
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aion-postgres-credentials
+                  key: password
+          volumeMounts:
+            - name: config
+              mountPath: /etc/trino/catalog
+              readOnly: true
+            - name: jvm-config
+              mountPath: /etc/trino/jvm.config
+              subPath: jvm.config
+              readOnly: true
+            - name: trino-config
+              mountPath: /etc/trino/config.properties
+              subPath: config.properties
+              readOnly: true
+            - name: log-config
+              mountPath: /etc/trino/log.properties
+              subPath: log.properties
+              readOnly: true
+          resources:
+            requests:
+              cpu: "2"
+              memory: "6Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+      volumes:
+        - name: config
+          configMap:
+            name: trino-config
+            items:
+              - key: catalog-iceberg.properties
+                path: iceberg.properties
+              - key: catalog-postgres.properties
+                path: postgresql.properties
+              - key: catalog-kafka.properties
+                path: kafka.properties
+        - name: jvm-config
+          configMap:
+            name: trino-config
+            items:
+              - key: jvm.config
+                path: jvm.config
+        - name: trino-config
+          configMap:
+            name: trino-config
+            items:
+              - key: config.properties
+                path: config.properties
+        - name: log-config
+          configMap:
+            name: trino-config
+            items:
+              - key: log.properties
+                path: log.properties
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: trino-worker-pdb
+  namespace: aion-analytics
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: trino
+      component: worker

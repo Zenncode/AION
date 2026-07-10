@@ -1,0 +1,39 @@
+# =============================================================================
+# Flink Configuration Overrides
+# =============================================================================
+
+jobmanager.rpc.address: flink-jobmanager
+jobmanager.memory.process.size: 2048m
+
+taskmanager.memory.process.size: 4096m
+taskmanager.numberOfTaskSlots: 4
+
+# State backend
+state.backend: rocksdb
+state.checkpoints.dir: file:///tmp/flink-checkpoints
+state.savepoints.dir: file:///tmp/flink-savepoints
+
+# Checkpointing
+execution.checkpointing.interval: 60000
+execution.checkpointing.min-pause: 30000
+execution.checkpointing.timeout: 120000
+execution.checkpointing.mode: EXACTLY_ONCE
+execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION
+
+# Restart strategy
+restart-strategy.type: exponential-delay
+restart-strategy.exponential-delay.initial-backoff: 1000
+restart-strategy.exponential-delay.max-backoff: 60000
+restart-strategy.exponential-delay.reset-backoff-threshold: 300000
+
+# Web UI
+rest.port: 8081
+rest.address: 0.0.0.0
+
+# Metrics
+metrics.reporters: prometheus
+metrics.reporter.prometheus.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+metrics.reporter.prometheus.port: 9249
+
+# Serialization
+pipeline.serialization-config: com.aion.ingestion.OrderEvent

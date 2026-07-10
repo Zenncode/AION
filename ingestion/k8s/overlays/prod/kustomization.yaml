@@ -1,0 +1,125 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+namespace: aion-ingestion
+
+commonLabels:
+  environment: production
+
+patches:
+  # Production replica counts
+  - target:
+      kind: Deployment
+      name: debezium-connect
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+
+  - target:
+      kind: Deployment
+      name: flink-taskmanager
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 4
+
+  - target:
+      kind: Deployment
+      name: spark-worker
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 4
+
+  # Production resource guarantees
+  - target:
+      kind: Deployment
+      name: debezium-connect
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "1"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "2Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "4"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "4Gi"
+
+  - target:
+      kind: Deployment
+      name: flink-jobmanager
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "2"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "4Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "6Gi"
+
+  - target:
+      kind: Deployment
+      name: flink-taskmanager
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "2"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "8Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "4"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "10Gi"
+
+  - target:
+      kind: Deployment
+      name: spark-worker
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "2"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "8Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "4"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "10Gi"
+
+  # Update SA role ARNs for prod
+  - target:
+      kind: ServiceAccount
+      name: aion-kafka
+    patch: |
+      - op: replace
+        path: /metadata/annotations/eks.amazonaws.com~1role-arn
+        value: arn:aws:iam::ACCOUNT_ID:role/aion-production-msk-access
+  - target:
+      kind: ServiceAccount
+      name: aion-s3
+    patch: |
+      - op: replace
+        path: /metadata/annotations/eks.amazonaws.com~1role-arn
+        value: arn:aws:iam::ACCOUNT_ID:role/aion-production-s3-access
+  - target:
+      kind: ServiceAccount
+      name: aion-generic
+    patch: |
+      - op: replace
+        path: /metadata/annotations/eks.amazonaws.com~1role-arn
+        value: arn:aws:iam::ACCOUNT_ID:role/aion-production-generic-access

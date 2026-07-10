@@ -1,0 +1,52 @@
+# =============================================================================
+# AION Feast Feature Store Configuration
+# =============================================================================
+# Registry:  S3 (backed by Glue for metadata)
+# Online:    Redis (ElastiCache in production)
+# Offline:   Glue/Athena (Iceberg tables)
+# =============================================================================
+
+project: aion
+provider: aws
+registry: s3://aion-feast-registry/registry.db
+
+# Online store — Redis
+online_store:
+  type: redis
+  connection_string: "aion-redis.aion-mlops.svc.cluster.local:6379,0"
+  # Production: use ElastiCache
+  # connection_string: "aion-cache.xxxxx.ng.0001.euw1.cache.amazonaws.com:6379,0"
+  ssl: false
+  key_prefix: "feast:aion:"
+  queue_timeout_seconds: 60
+  online_store_batch_size: 50
+
+# Offline store — AWS Glue (reads Iceberg tables via Athena)
+offline_store:
+  type: glue
+  region: eu-west-1
+  database: aion
+  data_catalog: awsdatacatalog
+
+# Entity serialization
+entity_key_serialization:
+  encoding: utf-8
+  separator: ""
+
+# Feature server
+feature_server:
+  host: 0.0.0.0
+  port: 6566
+  log_level: INFO
+
+# Auth (disabled for internal K8s, enable for production)
+auth:
+  type: no_auth
+
+# Logging
+logging:
+  enabled: true
+
+# Materialization
+# Configured to run via CronJob every hour
+# See feast-k8s-cron.yaml for the Kubernetes CronJob definition

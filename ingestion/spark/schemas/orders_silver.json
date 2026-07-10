@@ -1,0 +1,23 @@
+{
+  "type": "record",
+  "name": "OrdersSilver",
+  "namespace": "com.aion.schemas",
+  "doc": "AION Silver layer orders schema — cleansed and validated",
+  "fields": [
+    {"name": "order_id", "type": "long", "doc": "Unique order identifier"},
+    {"name": "customer_id", "type": "long", "doc": "Customer identifier"},
+    {"name": "product_id", "type": "long", "doc": "Product identifier"},
+    {"name": "quantity", "type": "int", "doc": "Order quantity"},
+    {"name": "unit_price", "type": {"type": "bytes", "logicalType": "decimal", "precision": 12, "scale": 2}, "doc": "Price per unit"},
+    {"name": "total_amount", "type": ["null", {"type": "bytes", "logicalType": "decimal", "precision": 12, "scale": 2}], "default": null, "doc": "Total order amount"},
+    {"name": "currency", "type": {"type": "enum", "name": "Currency", "symbols": ["EUR", "USD", "GBP", "SEK", "NOK", "DKK"]}, "doc": "ISO 4217 currency code"},
+    {"name": "status", "type": {"type": "enum", "name": "OrderStatus", "symbols": ["pending", "confirmed", "shipped", "delivered", "cancelled", "refunded"]}, "doc": "Order lifecycle status"},
+    {"name": "region", "type": ["null", "string"], "default": null, "doc": "Geographic region"},
+    {"name": "created_at", "type": "timestamp-millis", "doc": "Order creation timestamp (UTC)"},
+    {"name": "updated_at", "type": "timestamp-millis", "doc": "Last update timestamp (UTC)"},
+    {"name": "_processing_timestamp", "type": "timestamp-millis", "doc": "Pipeline processing time (UTC)"},
+    {"name": "_source", "type": "string", "doc": "Data source identifier"},
+    {"name": "_pipeline_version", "type": "string", "doc": "Pipeline version for lineage"},
+    {"name": "_record_date", "type": {"type": "int", "logicalType": "date"}, "doc": "Partition key for Iceberg"}
+  ]
+}

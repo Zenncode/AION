@@ -1,0 +1,84 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+namespace: aion-ingestion-dev
+
+namePrefix: dev-
+
+commonLabels:
+  environment: development
+
+patches:
+  # Scale down for development
+  - target:
+      kind: Deployment
+      name: flink-taskmanager
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: Deployment
+      name: spark-worker
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+
+  # Reduce resource requests for dev
+  - target:
+      kind: Deployment
+      name: debezium-connect
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "250m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "512Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "1"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "1Gi"
+
+  - target:
+      kind: Deployment
+      name: flink-jobmanager
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "500m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "1Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "2Gi"
+
+  # Update SA role ARNs for dev
+  - target:
+      kind: ServiceAccount
+      name: aion-kafka
+    patch: |
+      - op: replace
+        path: /metadata/annotations/eks.amazonaws.com~1role-arn
+        value: arn:aws:iam::ACCOUNT_ID:role/aion-development-msk-access
+  - target:
+      kind: ServiceAccount
+      name: aion-s3
+    patch: |
+      - op: replace
+        path: /metadata/annotations/eks.amazonaws.com~1role-arn
+        value: arn:aws:iam::ACCOUNT_ID:role/aion-development-s3-access
+  - target:
+      kind: ServiceAccount
+      name: aion-generic
+    patch: |
+      - op: replace
+        path: /metadata/annotations/eks.amazonaws.com~1role-arn
+        value: arn:aws:iam::ACCOUNT_ID:role/aion-development-generic-access

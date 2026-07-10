@@ -1,0 +1,123 @@
+---
+# Debezium Kafka Connect — CDC from PostgreSQL to Kafka
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: debezium-connect
+  namespace: aion-ingestion
+  labels:
+    app: debezium
+    app.kubernetes.io/name: debezium
+    app.kubernetes.io/component: cdc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: debezium
+  template:
+    metadata:
+      labels:
+        app: debezium
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8083"
+    spec:
+      serviceAccountName: aion-generic
+      containers:
+        - name: debezium
+          image: debezium/connect:2.5.Final
+          ports:
+            - containerPort: 8083
+              name: http
+              protocol: TCP
+          env:
+            - name: BOOTSTRAP_SERVERS
+              value: "kafka-cluster.aion-data.svc.cluster.local:9092"
+            - name: GROUP_ID
+              value: "aion-debezium-connect"
+            - name: CONFIG_STORAGE_TOPIC
+              value: "debezium-configs"
+            - name: OFFSET_STORAGE_TOPIC
+              value: "debezium-offsets"
+            - name: STATUS_STORAGE_TOPIC
+              value: "debezium-status"
+            - name: CONFIG_STORAGE_REPLICATION_FACTOR
+              value: "3"
+            - name: OFFSET_STORAGE_REPLICATION_FACTOR
+              value: "3"
+            - name: STATUS_STORAGE_REPLICATION_FACTOR
+              value: "3"
+            - name: PLUGIN_PATH
+              value: "/kafka/connect"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /connectors
+              port: 8083
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /connectors
+              port: 8083
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: debezium
+  namespace: aion-ingestion
+  labels:
+    app: debezium
+spec:
+  ports:
+    - port: 8083
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: debezium
+---
+# ConfigMap with Debezium connector configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: debezium-connector-config
+  namespace: aion-ingestion
+data:
+  legacy-postgres-connector.json: |
+    {
+      "name": "legacy-postgres-connector",
+      "config": {
+        "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+        "database.hostname": "legacy-postgres.aion-data.svc.cluster.local",
+        "database.port": "5432",
+        "database.user": "legacy_admin",
+        "database.dbname": "legacy",
+        "database.server.name": "legacy",
+        "plugin.name": "pgoutput",
+        "slot.name": "debezium_slot",
+        "publication.name": "debezium_pub",
+        "topic.prefix": "legacy",
+        "table.include.list": "public.orders",
+        "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+        "key.converter.schemas.enable": true,
+        "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+        "value.converter.schemas.enable": true,
+        "transforms": "route",
+        "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+        "transforms.route.regex": "([^.]+)\\.([^.]+)\\.([^.]+)",
+        "transforms.route.replacement": "legacy.orders",
+        "snapshot.mode": "initial",
+        "heartbeat.interval.ms": "10000"
+      }
+    }

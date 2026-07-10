@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aion-ingestion
+  labels:
+    app.kubernetes.io/part-of: aion
+    app.kubernetes.io/component: ingestion
+    environment: ${ENVIRONMENT}

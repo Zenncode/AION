@@ -1,0 +1,125 @@
+---
+# Spark Master
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-master
+  namespace: aion-ingestion
+  labels:
+    app: spark
+    component: master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spark
+      component: master
+  template:
+    metadata:
+      labels:
+        app: spark
+        component: master
+    spec:
+      serviceAccountName: aion-s3
+      containers:
+        - name: spark-master
+          image: bitnami/spark:3.5.1
+          ports:
+            - containerPort: 7077
+              name: spark
+            - containerPort: 8080
+              name: ui
+          env:
+            - name: SPARK_MODE
+              value: master
+            - name: SPARK_MASTER_HOST
+              value: "spark-master"
+            - name: SPARK_MASTER_PORT
+              value: "7077"
+            - name: SPARK_MASTER_WEBUI_PORT
+              value: "8080"
+            - name: SPARK_PUBLIC_DNS
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "2"
+              memory: "3Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-master
+  namespace: aion-ingestion
+  labels:
+    app: spark
+    component: master
+spec:
+  ports:
+    - port: 7077
+      targetPort: spark
+      name: spark
+    - port: 8080
+      targetPort: ui
+      name: ui
+  selector:
+    app: spark
+    component: master
+---
+# Spark Worker
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-worker
+  namespace: aion-ingestion
+  labels:
+    app: spark
+    component: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: spark
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: spark
+        component: worker
+    spec:
+      serviceAccountName: aion-s3
+      containers:
+        - name: spark-worker
+          image: bitnami/spark:3.5.1
+          env:
+            - name: SPARK_MODE
+              value: worker
+            - name: SPARK_MASTER_URL
+              value: "spark://spark-master:7077"
+            - name: SPARK_WORKER_MEMORY
+              value: "4G"
+            - name: SPARK_WORKER_CORES
+              value: "2"
+          resources:
+            requests:
+              cpu: "1"
+              memory: "4Gi"
+            limits:
+              cpu: "2"
+              memory: "5Gi"
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: spark-worker-pdb
+  namespace: aion-ingestion
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: spark
+      component: worker

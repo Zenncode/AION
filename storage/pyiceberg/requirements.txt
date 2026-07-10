@@ -1,0 +1,5 @@
+# AION PyIceberg Ingestion Dependencies
+pyiceberg==0.6.0
+pyarrow>=14.0.0
+boto3>=1.34.0
+pyyaml>=6.0

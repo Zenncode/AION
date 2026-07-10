@@ -1,0 +1,212 @@
+---
+# =============================================================================
+# AION Trino Configuration — Kubernetes ConfigMap
+# =============================================================================
+# Connects Trino to:
+#   1. AWS Glue Data Catalog (Iceberg metadata via S3)
+#   2. PostgreSQL (Trino internal metadata: queries, sessions, etc.)
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trino-config
+  namespace: aion-analytics
+  labels:
+    app: trino
+    app.kubernetes.io/name: trino
+    app.kubernetes.io/component: query-engine
+    app.kubernetes.io/part-of: aion
+data:
+
+  # -------------------------------------------------------------------------
+  # config.properties — Trino server configuration
+  # -------------------------------------------------------------------------
+  config.properties: |
+    # === Node Discovery ===
+    coordinator=true
+    node.environment=production
+    node.internal-address-source=DNS
+    discovery.uri=http://trino-coordinator.aion-analytics.svc.cluster.local:8080
+
+    # === Memory Management ===
+    query.max-memory=8GB
+    query.max-memory-per-node=4GB
+    query.max-total-memory-per-node=6GB
+    query.memory-allocation-for-query-worker-percent=0.4
+    query.max-run-time=1h
+    query.min-schedule-split-batch-size=100
+
+    # === Query Limits ===
+    query.max-stage-count=100
+    query.stage-count-warning-threshold=50
+
+    # === Exchange & Network ===
+    exchange.base-delay=1s
+    exchange.max-delay=30s
+    sink.max-buffer-size=256MB
+
+    # === HTTP Server ===
+    http-server.http.port=8080
+    http-server.https.port=8443
+    http-server.enabled-protocols=http
+    http-server threads=160
+
+    # === Authorization ===
+    authorization.enabled=false
+
+    # === Event Listener (query audit) ===
+    event-listener.name=query-logger
+
+    # === Password Authentication (internal) ===
+    password-authenticator.name=file
+    file.password-file=/etc/trino/auth/password.db
+
+    # === JMX Metrics ===
+    jmx.rmiregistry.port=9999
+
+  # -------------------------------------------------------------------------
+  # catalog properties — AWS Glue (Iceberg)
+  # -------------------------------------------------------------------------
+  catalog-iceberg.properties: |
+    connector.name=iceberg
+    hive.metastore.type=glue
+
+    # AWS Glue Data Catalog
+    hive.metastore.glue.region=eu-west-1
+    hive.metastore.glue.endpoint=https://glue.eu-west-1.amazonaws.com
+    hive.metastore.glue.pin-cluster-to-region=true
+
+    # S3 storage for Iceberg data
+    iceberg.s3.region=eu-west-1
+    iceberg.s3.endpoint=s3.eu-west-1.amazonaws.com
+    iceberg.s3.path-style-access=true
+    iceberg.s3.aws-access-key=${ENV:AWS_ACCESS_KEY_ID}
+    iceberg.s3.aws-secret-key=${ENV:AWS_SECRET_ACCESS_KEY}
+
+    # Iceberg defaults
+    iceberg.file-format=PARQUET
+    iceberg.compression-codec=zstd
+    iceberg.register-table-procedure.enabled=true
+    iceberg.parallelism=32
+    iceberg.target-max-file-size=512MB
+    iceberg.unique-table-location=true
+
+    # Glue catalog defaults
+    hive.s3.max-connections=500
+    hive.s3.max-error-retries=20
+    hive.s3.connect-timeout=60s
+    hive.s3.socket-timeout=60s
+    hive.s3.staging-directory=/tmp/trino-s3-staging
+    hive.metastore.cache.max-size=10000
+    hive.metastore.cache-ttl=0s
+
+    # Partition handling
+    hive.ignore-table-with-partition-columns=false
+    hive.partition-projection-enabled=true
+
+    # Default schema
+    hive.config.resources=/etc/trino/hive/core-site.xml
+
+  # -------------------------------------------------------------------------
+  # catalog properties — PostgreSQL (metadata + operational)
+  # -------------------------------------------------------------------------
+  catalog-postgres.properties: |
+    connector.name=postgresql
+    connection-url=jdbc:postgresql://postgresql.aion-data.svc.cluster.local:5432/aion_metadata
+    connection-user=${ENV:POSTGRES_USER}
+    connection-password=${ENV:POSTGRES_PASSWORD}
+    connection-pool.max-size=20
+    connection-pool.min-idle=5
+    connection-pool.idle-timeout=10m
+    postgresql.include-in-system-schemas=false
+    postgresql.array-mapping=LEGACY
+
+  # -------------------------------------------------------------------------
+  # catalog properties — Kafka (event stream access)
+  # -------------------------------------------------------------------------
+  catalog-kafka.properties: |
+    connector.name=kafka
+    kafka.table-names=aion.kafka.legacy_orders,aion.kafka.aggregated_sales
+    kafka.nodes=kafka-cluster.aion-data.svc.cluster.local:9092
+    kafka.default-schema=kafka
+    kafka.hide-internal-columns=true
+
+  # -------------------------------------------------------------------------
+  # log.properties — Logging levels
+  # -------------------------------------------------------------------------
+  log.properties: |
+    io.trino=INFO
+    io.trino.server=INFO
+    io.trino.plugin.hive=INFO
+    io.trino.plugin.iceberg=INFO
+    com.amazonaws=ERROR
+    org.apache.parquet=ERROR
+    io.airlift=INFO
+
+  # -------------------------------------------------------------------------
+  # JVM Config
+  # -------------------------------------------------------------------------
+  jvm.config: |
+    -server
+    -Xmx4g
+    -Xms4g
+    -XX:+UseG1GC
+    -XX:G1HeapRegionSize=32M
+    -XX:+ExplicitGCInvokesConcurrent
+    -XX:+HeapDumpOnOutOfMemoryError
+    -XX:+UseNUMA
+    -XX:+UseStringDeduplication
+    -XX:+ReservedCodeCacheSize=512M
+    -XX:ReservedCodeCacheSize=512m
+    -XX:-OmitStackTraceInFastThrow
+    -Djava.security.egd=file:/dev/urandom
+    -Djdk.nio.maxCachedBufferSize=1048576
+
+  # -------------------------------------------------------------------------
+  # Hive core-site.xml — S3A filesystem config for Iceberg
+  # -------------------------------------------------------------------------
+  core-site.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <configuration>
+      <property>
+        <name>fs.s3a.impl</name>
+        <value>org.apache.hadoop.fs.s3a.S3AFileSystem</value>
+      </property>
+      <property>
+        <name>fs.s3a.endpoint</name>
+        <value>s3.eu-west-1.amazonaws.com</value>
+      </property>
+      <property>
+        <name>fs.s3a.path.style.access</name>
+        <value>true</value>
+      </property>
+      <property>
+        <name>fs.s3a.connection.maximum</name>
+        <value>500</value>
+      </property>
+      <property>
+        <name>fs.s3a.connection.establish.timeout</name>
+        <value>60000</value>
+      </property>
+      <property>
+        <name>fs.s3a.connection.socket.timeout</name>
+        <value>60000</value>
+      </property>
+      <property>
+        <name>fs.s3a.experimental.input.fadvise</name>
+        <value>true</value>
+      </property>
+      <property>
+        <name>fs.s3a.buffer.dir</name>
+        <value>/tmp/s3a-buffer</value>
+      </property>
+      <property>
+        <name>fs.s3a.fast.upload</name>
+        <value>true</value>
+      </property>
+      <property>
+        <name>fs.s3a.multipart.size</name>
+        <value>67108864</value>
+      </property>
+    </configuration>
