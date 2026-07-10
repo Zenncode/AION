@@ -137,15 +137,15 @@ export default function InventoryChart({ data, loading }: InventoryChartProps) {
         )}
       </div>
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-4">
-        <div>
+        <div className="flex flex-col h-full">
           <p className="text-xs text-gray-500 mb-2">Turns by Category</p>
-          <div className="h-full">
+          <div className="flex-1 min-h-0 relative">
             {turnoverData && <Bar data={turnoverData} options={barOptions} />}
           </div>
         </div>
-        <div>
+        <div className="flex flex-col h-full">
           <p className="text-xs text-gray-500 mb-2">Stockout Trend</p>
-          <div className="h-full">
+          <div className="flex-1 min-h-0 relative">
             {stockoutData && <Line data={stockoutData} options={lineOptions} />}
           </div>
         </div>

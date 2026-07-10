@@ -10,14 +10,15 @@ export default defineConfig({
     },
   },
   server: {
+    host: '0.0.0.0',
     port: 3000,
     proxy: {
       '/graphql': {
-        target: 'http://gateway.aion.svc.cluster.local:4000',
+        target: 'http://localhost:4000',
         changeOrigin: true,
       },
       '/copilot': {
-        target: 'http://aion-copilot.aion-copilot.svc.cluster.local:8000',
+        target: 'http://localhost:8000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/copilot/, ''),
       },

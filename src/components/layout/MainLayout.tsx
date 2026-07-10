@@ -1,11 +1,11 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { useKeycloak } from '@react-keycloak/web';
+import { Outlet, NavLink } from 'react-router-dom';
 import {
   HiOutlineChartBar,
   HiOutlineChatBubbleLeftRight,
   HiOutlineTableCells,
   HiOutlineArrowRightOnRectangle,
 } from 'react-icons/hi2';
+import keycloak from '@/auth/keycloak';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: HiOutlineChartBar },
@@ -14,8 +14,7 @@ const navItems = [
 ];
 
 export default function MainLayout() {
-  const { keycloak } = useKeycloak();
-  const navigate = useNavigate();
+
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -55,23 +54,25 @@ export default function MainLayout() {
         <div className="p-3 border-t border-[#334155]">
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-sm font-medium">
-              {keycloak.tokenParsed?.name?.[0] || 'U'}
+              {keycloak?.tokenParsed?.name?.[0] || 'U'}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">
-                {keycloak.tokenParsed?.name || 'User'}
+                {keycloak?.tokenParsed?.name || 'Local Dev'}
               </p>
               <p className="text-xs text-gray-500 truncate">
-                {keycloak.tokenParsed?.email || ''}
+                {keycloak?.tokenParsed?.email || 'dev@aion.local'}
               </p>
             </div>
-            <button
-              onClick={() => keycloak.logout()}
-              className="p-1.5 rounded-lg text-gray-500 hover:bg-[#334155] hover:text-white transition-colors"
-              title="Sign out"
-            >
-              <HiOutlineArrowRightOnRectangle className="w-4 h-4" />
-            </button>
+            {keycloak?.authenticated && (
+              <button
+                onClick={() => keycloak.logout()}
+                className="p-1.5 rounded-lg text-gray-500 hover:bg-[#334155] hover:text-white transition-colors"
+                title="Sign out"
+              >
+                <HiOutlineArrowRightOnRectangle className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </aside>

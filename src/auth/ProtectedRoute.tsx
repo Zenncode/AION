@@ -1,5 +1,6 @@
 import { useKeycloak } from '@react-keycloak/web';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
+
 
 export default function ProtectedRoute() {
   const { keycloak, initialized } = useKeycloak();

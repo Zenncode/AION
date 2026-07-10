@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useSubscription } from '@apollo/client';
-import { Responsive, WidthProvider } from 'react-grid-layout';
+import { Responsive, WidthProvider, Layouts } from 'react-grid-layout';
 import { GET_REVENUE_METRICS, GET_ACTIVE_USERS, GET_INVENTORY_METRICS, SUBSCRIBE_KPI_UPDATES } from '@/graphql/queries';
 import { RevenueMetrics, ActiveUsersMetrics, InventoryMetrics, KPIData } from '@/types';
 import KPICard from './KPICard';
@@ -12,41 +12,42 @@ import 'react-resizable/css/styles.css';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
+
 const defaultLayouts = {
   lg: [
-    { i: 'kpi-revenue', x: 0, y: 0, w: 3, h: 2, minW: 2, minH: 2 },
-    { i: 'kpi-users', x: 3, y: 0, w: 3, h: 2, minW: 2, minH: 2 },
-    { i: 'kpi-inventory', x: 6, y: 0, w: 3, h: 2, minW: 2, minH: 2 },
-    { i: 'kpi-churn', x: 9, y: 0, w: 3, h: 2, minW: 2, minH: 2 },
-    { i: 'revenue-chart', x: 0, y: 2, w: 8, h: 5, minW: 4, minH: 3 },
-    { i: 'users-chart', x: 8, y: 2, w: 4, h: 5, minW: 3, minH: 3 },
-    { i: 'inventory-chart', x: 0, y: 7, w: 6, h: 5, minW: 4, minH: 3 },
-    { i: 'revenue-breakdown', x: 6, y: 7, w: 6, h: 5, minW: 4, minH: 3 },
+    { i: 'kpi-revenue', x: 0, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
+    { i: 'kpi-users', x: 3, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
+    { i: 'kpi-inventory', x: 6, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
+    { i: 'kpi-churn', x: 9, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
+    { i: 'revenue-chart', x: 0, y: 3, w: 8, h: 8, minW: 4, minH: 3 },
+    { i: 'users-chart', x: 8, y: 3, w: 4, h: 8, minW: 3, minH: 3 },
+    { i: 'inventory-chart', x: 0, y: 11, w: 6, h: 8, minW: 4, minH: 3 },
+    { i: 'revenue-breakdown', x: 6, y: 11, w: 6, h: 8, minW: 4, minH: 3 },
   ],
   md: [
-    { i: 'kpi-revenue', x: 0, y: 0, w: 5, h: 2 },
-    { i: 'kpi-users', x: 5, y: 0, w: 5, h: 2 },
-    { i: 'kpi-inventory', x: 0, y: 2, w: 5, h: 2 },
-    { i: 'kpi-churn', x: 5, y: 2, w: 5, h: 2 },
-    { i: 'revenue-chart', x: 0, y: 4, w: 10, h: 5 },
-    { i: 'users-chart', x: 0, y: 9, w: 10, h: 4 },
-    { i: 'inventory-chart', x: 0, y: 13, w: 10, h: 4 },
-    { i: 'revenue-breakdown', x: 0, y: 17, w: 10, h: 4 },
+    { i: 'kpi-revenue', x: 0, y: 0, w: 5, h: 3 },
+    { i: 'kpi-users', x: 5, y: 0, w: 5, h: 3 },
+    { i: 'kpi-inventory', x: 0, y: 3, w: 5, h: 3 },
+    { i: 'kpi-churn', x: 5, y: 3, w: 5, h: 3 },
+    { i: 'revenue-chart', x: 0, y: 6, w: 10, h: 8 },
+    { i: 'users-chart', x: 0, y: 14, w: 10, h: 8 },
+    { i: 'inventory-chart', x: 0, y: 22, w: 10, h: 8 },
+    { i: 'revenue-breakdown', x: 0, y: 30, w: 10, h: 8 },
   ],
   sm: [
-    { i: 'kpi-revenue', x: 0, y: 0, w: 6, h: 2 },
-    { i: 'kpi-users', x: 0, y: 2, w: 6, h: 2 },
-    { i: 'kpi-inventory', x: 0, y: 4, w: 6, h: 2 },
-    { i: 'kpi-churn', x: 0, y: 6, w: 6, h: 2 },
-    { i: 'revenue-chart', x: 0, y: 8, w: 6, h: 5 },
-    { i: 'users-chart', x: 0, y: 13, w: 6, h: 4 },
-    { i: 'inventory-chart', x: 0, y: 17, w: 6, h: 4 },
-    { i: 'revenue-breakdown', x: 0, y: 21, w: 6, h: 4 },
+    { i: 'kpi-revenue', x: 0, y: 0, w: 6, h: 3 },
+    { i: 'kpi-users', x: 0, y: 3, w: 6, h: 3 },
+    { i: 'kpi-inventory', x: 0, y: 6, w: 6, h: 3 },
+    { i: 'kpi-churn', x: 0, y: 9, w: 6, h: 3 },
+    { i: 'revenue-chart', x: 0, y: 12, w: 6, h: 8 },
+    { i: 'users-chart', x: 0, y: 20, w: 6, h: 8 },
+    { i: 'inventory-chart', x: 0, y: 28, w: 6, h: 8 },
+    { i: 'revenue-breakdown', x: 0, y: 36, w: 6, h: 8 },
   ],
 };
 
 export default function Dashboard() {
-  const [layouts, setLayouts] = useState(defaultLayouts);
+  const [layouts, setLayouts] = useState<Layouts>(defaultLayouts);
 
   const { data: revenueData, loading: revenueLoading } = useQuery<{ revenueMetrics: RevenueMetrics }>(
     GET_REVENUE_METRICS,
@@ -88,7 +89,7 @@ export default function Dashboard() {
   );
 
   // Real-time KPI subscription
-  const { data: kpiSubData } = useSubscription<{ kpiUpdated: KPIData }>(SUBSCRIBE_KPI_UPDATES);
+  const { data: _kpiSubData } = useSubscription<{ kpiUpdated: KPIData }>(SUBSCRIBE_KPI_UPDATES);
 
   const revenue = revenueData?.revenueMetrics;
   const users = usersData?.activeUsers;

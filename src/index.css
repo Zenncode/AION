@@ -2,40 +2,433 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =============================================================================
+   AION Design System
+   ============================================================================= */
+
 :root {
-  --color-primary: #2563eb;
-  --color-primary-dark: #1d4ed8;
-  --color-bg: #0f172a;
-  --color-surface: #1e293b;
-  --color-surface-hover: #334155;
-  --color-border: #334155;
-  --color-text: #f8fafc;
-  --color-text-secondary: #94a3b8;
-  --color-success: #22c55e;
-  --color-warning: #f59e0b;
-  --color-danger: #ef4444;
+  /* Core palette */
+  --aion-bg:           #0a0e1a;
+  --aion-bg-raised:    #111827;
+  --aion-surface:      #1a2235;
+  --aion-surface-hover:#243049;
+  --aion-border:       #2a3650;
+  --aion-border-subtle:#1e2a42;
+
+  /* Brand */
+  --aion-primary:      #6366f1;
+  --aion-primary-glow: rgba(99, 102, 241, 0.25);
+  --aion-primary-dark: #4f46e5;
+  --aion-accent:       #06b6d4;
+  --aion-accent-glow:  rgba(6, 182, 212, 0.2);
+
+  /* Text */
+  --aion-text:         #f1f5f9;
+  --aion-text-muted:   #64748b;
+  --aion-text-dim:     #475569;
+
+  /* Semantic */
+  --aion-success:      #10b981;
+  --aion-success-bg:   rgba(16, 185, 129, 0.1);
+  --aion-warning:      #f59e0b;
+  --aion-warning-bg:   rgba(245, 158, 11, 0.1);
+  --aion-danger:       #ef4444;
+  --aion-danger-bg:    rgba(239, 68, 68, 0.1);
+  --aion-info:         #3b82f6;
+  --aion-info-bg:      rgba(59, 130, 246, 0.1);
+
+  /* Gradients */
+  --aion-gradient-brand: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%);
+  --aion-gradient-card:  linear-gradient(180deg, rgba(99,102,241,0.04) 0%, transparent 60%);
+  --aion-gradient-glow:  radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.12) 0%, transparent 70%);
+
+  /* Shadows */
+  --aion-shadow-sm:   0 1px 2px rgba(0,0,0,0.3);
+  --aion-shadow-md:   0 4px 12px rgba(0,0,0,0.4);
+  --aion-shadow-lg:   0 8px 32px rgba(0,0,0,0.5);
+  --aion-shadow-glow: 0 0 20px rgba(99,102,241,0.15);
+
+  /* Radius */
+  --aion-radius-sm: 6px;
+  --aion-radius-md: 10px;
+  --aion-radius-lg: 16px;
+  --aion-radius-xl: 24px;
 }
 
-* {
+/* =============================================================================
+   Reset & Base
+   ============================================================================= */
+
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background-color: var(--color-bg);
-  color: var(--color-text);
-  -webkit-font-smoothing: antialiased;
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
 }
 
-/* React Grid Layout */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--aion-bg);
+  color: var(--aion-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* Subtle background pattern */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--aion-gradient-glow);
+  pointer-events: none;
+  z-index: -1;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* =============================================================================
+   Typography
+   ============================================================================= */
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--aion-text);
+}
+
+/* =============================================================================
+   Card System
+   ============================================================================= */
+
+@layer components {
+  .aion-card {
+    background: var(--aion-surface);
+    border: 1px solid var(--aion-border);
+    border-radius: var(--aion-radius-lg);
+    box-shadow: var(--aion-shadow-sm);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .aion-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--aion-gradient-card);
+    pointer-events: none;
+  }
+
+  .aion-card:hover {
+    border-color: rgba(99, 102, 241, 0.3);
+    box-shadow: var(--aion-shadow-md), var(--aion-shadow-glow);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .aion-card-interactive {
+    cursor: pointer;
+  }
+
+  .aion-card-interactive:active {
+    transform: scale(0.995);
+  }
+
+  /* Glass morphism variant */
+  .aion-glass {
+    background: rgba(26, 34, 53, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(99, 102, 241, 0.1);
+  }
+}
+
+/* =============================================================================
+   Buttons
+   ============================================================================= */
+
+@layer components {
+  .aion-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: var(--aion-radius-md);
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+  }
+
+  .aion-btn-primary {
+    background: var(--aion-gradient-brand);
+    color: white;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  }
+
+  .aion-btn-primary:hover {
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.5);
+    transform: translateY(-1px);
+  }
+
+  .aion-btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .aion-btn-ghost {
+    background: transparent;
+    color: var(--aion-text-muted);
+    border: 1px solid var(--aion-border);
+  }
+
+  .aion-btn-ghost:hover {
+    background: var(--aion-surface);
+    color: var(--aion-text);
+    border-color: var(--aion-border);
+  }
+
+  .aion-btn-danger {
+    background: var(--aion-danger);
+    color: white;
+  }
+
+  .aion-btn-danger:hover {
+    background: #dc2626;
+  }
+}
+
+/* =============================================================================
+   Input Fields
+   ============================================================================= */
+
+@layer components {
+  .aion-input {
+    width: 100%;
+    padding: 10px 16px;
+    font-size: 14px;
+    color: var(--aion-text);
+    background: var(--aion-bg);
+    border: 1px solid var(--aion-border);
+    border-radius: var(--aion-radius-md);
+    outline: none;
+    transition: all 0.2s ease;
+  }
+
+  .aion-input::placeholder {
+    color: var(--aion-text-dim);
+  }
+
+  .aion-input:focus {
+    border-color: var(--aion-primary);
+    box-shadow: 0 0 0 3px var(--aion-primary-glow);
+  }
+
+  .aion-input:hover:not(:focus) {
+    border-color: var(--aion-surface-hover);
+  }
+}
+
+/* =============================================================================
+   Badges & Pills
+   ============================================================================= */
+
+@layer components {
+  .aion-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  .aion-badge-success {
+    background: var(--aion-success-bg);
+    color: var(--aion-success);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+  }
+
+  .aion-badge-warning {
+    background: var(--aion-warning-bg);
+    color: var(--aion-warning);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+  }
+
+  .aion-badge-danger {
+    background: var(--aion-danger-bg);
+    color: var(--aion-danger);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+
+  .aion-badge-info {
+    background: var(--aion-info-bg);
+    color: var(--aion-info);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+  }
+}
+
+/* =============================================================================
+   Chat / Copilot Interface
+   ============================================================================= */
+
+@layer components {
+  .aion-chat-bubble {
+    max-width: 75%;
+    padding: 12px 16px;
+    border-radius: 16px;
+    font-size: 14px;
+    line-height: 1.6;
+    animation: bubbleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .aion-chat-user {
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: white;
+    border-bottom-right-radius: 4px;
+    margin-left: auto;
+  }
+
+  .aion-chat-assistant {
+    background: var(--aion-surface);
+    border: 1px solid var(--aion-border);
+    color: var(--aion-text);
+    border-bottom-left-radius: 4px;
+  }
+
+  .aion-chat-typing {
+    display: flex;
+    gap: 4px;
+    padding: 16px;
+  }
+
+  .aion-chat-typing span {
+    width: 8px;
+    height: 8px;
+    background: var(--aion-text-dim);
+    border-radius: 50%;
+    animation: typingDot 1.4s infinite;
+  }
+
+  .aion-chat-typing span:nth-child(2) { animation-delay: 0.2s; }
+  .aion-chat-typing span:nth-child(3) { animation-delay: 0.4s; }
+}
+
+/* =============================================================================
+   Dashboard KPI
+   ============================================================================= */
+
+@layer components {
+  .aion-kpi-card {
+    position: relative;
+    background: var(--aion-surface);
+    border: 1px solid var(--aion-border);
+    border-radius: var(--aion-radius-lg);
+    padding: 20px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+
+  .aion-kpi-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--aion-gradient-brand);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .aion-kpi-card:hover {
+    border-color: rgba(99, 102, 241, 0.3);
+    transform: translateY(-2px);
+    box-shadow: var(--aion-shadow-lg), var(--aion-shadow-glow);
+  }
+
+  .aion-kpi-card:hover::after {
+    opacity: 1;
+  }
+
+  .aion-kpi-value {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    background: var(--aion-gradient-brand);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .aion-kpi-trend-up {
+    color: var(--aion-success);
+  }
+
+  .aion-kpi-trend-down {
+    color: var(--aion-danger);
+  }
+}
+
+/* =============================================================================
+   Data Grid (AG Grid)
+   ============================================================================= */
+
+.ag-theme-alpine-dark {
+  --ag-background-color: var(--aion-surface);
+  --ag-header-background-color: var(--aion-bg-raised);
+  --ag-odd-row-background-color: var(--aion-surface);
+  --ag-row-hover-color: var(--aion-surface-hover);
+  --ag-border-color: var(--aion-border-subtle);
+  --ag-header-foreground-color: var(--aion-text-muted);
+  --ag-foreground-color: var(--aion-text);
+  --ag-secondary-foreground-color: var(--aion-text-muted);
+  --ag-selected-row-background-color: rgba(99, 102, 241, 0.15);
+  --ag-range-selection-background-color: rgba(99, 102, 241, 0.1);
+  --ag-input-focus-border-color: var(--aion-primary);
+  --ag-row-border-color: var(--aion-border-subtle);
+  font-size: 13px;
+}
+
+.ag-theme-alpine-dark .ag-header-cell {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.ag-theme-alpine-dark .ag-row:hover {
+  background-color: var(--aion-surface-hover) !important;
+}
+
+.ag-theme-alpine-dark .ag-cell {
+  border-right-color: var(--aion-border-subtle);
+}
+
+.ag-theme-alpine-dark .ag-paging-panel {
+  border-top-color: var(--aion-border);
+}
+
+/* =============================================================================
+   React Grid Layout
+   ============================================================================= */
+
 .react-grid-layout {
   position: relative;
 }
 
 .react-grid-item {
-  transition: all 200ms ease;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
   transition-property: left, top, width, height;
 }
 
@@ -46,18 +439,22 @@ body {
 .react-grid-item.resizing {
   z-index: 1;
   will-change: width, height;
+  opacity: 0.9;
 }
 
 .react-grid-item.react-draggable-dragging {
   transition: none;
   z-index: 3;
   will-change: transform;
+  opacity: 0.85;
+  box-shadow: var(--aion-shadow-lg);
 }
 
 .react-grid-placeholder {
-  background-color: var(--color-primary);
-  opacity: 0.2;
-  border-radius: 8px;
+  background: var(--aion-primary);
+  opacity: 0.08;
+  border-radius: var(--aion-radius-lg);
+  border: 2px dashed rgba(99, 102, 241, 0.3);
 }
 
 .react-resizable-handle {
@@ -67,69 +464,198 @@ body {
   bottom: 0;
   right: 0;
   cursor: se-resize;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.react-grid-item:hover .react-resizable-handle {
+  opacity: 1;
 }
 
 .react-resizable-handle::after {
   content: '';
   position: absolute;
-  right: 4px;
-  bottom: 4px;
+  right: 5px;
+  bottom: 5px;
   width: 8px;
   height: 8px;
-  border-right: 2px solid var(--color-text-secondary);
-  border-bottom: 2px solid var(--color-text-secondary);
+  border-right: 2px solid var(--aion-text-dim);
+  border-bottom: 2px solid var(--aion-text-dim);
 }
 
-/* AG Grid Dark Theme */
-.ag-theme-alpine-dark {
-  --ag-background-color: var(--color-surface);
-  --ag-header-background-color: #1a2332;
-  --ag-odd-row-background-color: var(--color-surface);
-  --ag-row-hover-color: var(--color-surface-hover);
-  --ag-border-color: var(--color-border);
-  --ag-header-foreground-color: var(--color-text-secondary);
-  --ag-foreground-color: var(--color-text);
-  --ag-secondary-foreground-color: var(--color-text-secondary);
-  --ag-selected-row-background-color: rgba(37, 99, 235, 0.2);
-  --ag-range-selection-background-color: rgba(37, 99, 235, 0.15);
-  --ag-input-focus-border-color: var(--color-primary);
-  font-size: 13px;
-}
+/* =============================================================================
+   Scrollbar
+   ============================================================================= */
 
-/* Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-bg);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 4px;
+  background: var(--aion-border);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-secondary);
+  background: var(--aion-text-dim);
 }
 
-/* Animations */
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--aion-border) transparent;
+}
+
+/* =============================================================================
+   Animations
+   ============================================================================= */
+
+@keyframes bubbleIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes typingDot {
+  0%, 60%, 100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+}
+
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); }
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(99, 102, 241, 0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .animate-pulse-glow {
   animation: pulse-glow 2s infinite;
 }
 
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
 }
 
-.animate-fade-in {
-  animation: fade-in 0.3s ease-out;
+.animate-slide-in-right {
+  animation: slide-in-right 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, var(--aion-surface) 25%, var(--aion-surface-hover) 50%, var(--aion-surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
+/* Staggered fade-in for lists */
+.stagger-fade > * {
+  opacity: 0;
+  animation: fade-in 0.3s ease-out forwards;
+}
+.stagger-fade > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-fade > *:nth-child(2) { animation-delay: 50ms; }
+.stagger-fade > *:nth-child(3) { animation-delay: 100ms; }
+.stagger-fade > *:nth-child(4) { animation-delay: 150ms; }
+.stagger-fade > *:nth-child(5) { animation-delay: 200ms; }
+.stagger-fade > *:nth-child(6) { animation-delay: 250ms; }
+.stagger-fade > *:nth-child(7) { animation-delay: 300ms; }
+.stagger-fade > *:nth-child(8) { animation-delay: 350ms; }
+
+/* =============================================================================
+   Utility Classes
+   ============================================================================= */
+
+@layer utilities {
+  .text-gradient {
+    background: var(--aion-gradient-brand);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .border-glow {
+    border-color: rgba(99, 102, 241, 0.3);
+    box-shadow: var(--aion-shadow-glow);
+  }
+
+  .bg-noise {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  }
+
+  .drag-handle {
+    cursor: grab;
+  }
+
+  .drag-handle:active {
+    cursor: grabbing;
+  }
+}
+
+/* =============================================================================
+   Print
+   ============================================================================= */
+
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+
+  .aion-card {
+    border: 1px solid #e2e8f0;
+    box-shadow: none;
+  }
 }

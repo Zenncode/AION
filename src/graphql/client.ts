@@ -3,7 +3,7 @@ import { setContext } from '@apollo/client/link/context';
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { createClient } from 'graphql-ws';
 import { getMainDefinition } from '@apollo/client/utilities';
-import { useKeycloak } from '@react-keycloak/web';
+
 
 const httpLink = createHttpLink({
   uri: import.meta.env.VITE_GRAPHQL_URL || '/graphql',
@@ -43,19 +43,26 @@ const splitLink = split(
   authLink.concat(httpLink)
 );
 
+import { mockLink } from './mockLink';
+
+const useMockData =
+  import.meta.env.VITE_USE_MOCK_DATA === 'true' ||
+  !import.meta.env.VITE_GRAPHQL_URL ||
+  import.meta.env.VITE_GRAPHQL_URL.includes('your-staging-server.com');
+
 export const apolloClient = new ApolloClient({
-  link: splitLink,
+  link: useMockData ? mockLink : splitLink,
   cache: new InMemoryCache({
     typePolicies: {
       Query: {
         fields: {
           revenueMetrics: {
-            merge(existing, incoming) {
+            merge(_, incoming) {
               return incoming;
             },
           },
           activeUsers: {
-            merge(existing, incoming) {
+            merge(_, incoming) {
               return incoming;
             },
           },

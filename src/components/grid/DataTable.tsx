@@ -1,22 +1,22 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@apollo/client';
 import { AgGridReact } from 'ag-grid-react';
-import { ColDef, SortModel, FilterModel, GridReadyEvent, PaginationChangedEvent } from 'ag-grid-community';
-import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import { ColDef, GridReadyEvent } from 'ag-grid-community';
+import { apolloClient } from '@/graphql/client';
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-alpine.css';
+
 import {
   GET_FINANCIAL_TRANSACTIONS,
   GET_CUSTOMER_360,
   GET_INVENTORY_SNAPSHOT,
 } from '@/graphql/queries';
 
-ModuleRegistry.registerModules([AllCommunityModule]);
-
 // =============================================================================
 // Table Configurations
 // =============================================================================
 
-const TABLE_CONFIGS: Record<string, { query: string; queryKey: string; columns: ColDef[] }> = {
+const TABLE_CONFIGS: Record<string, { query: any; queryKey: string; columns: ColDef[] }> = {
   transactions: {
     query: GET_FINANCIAL_TRANSACTIONS,
     queryKey: 'financialTransactions',
@@ -148,8 +148,12 @@ const TABLE_CONFIGS: Record<string, { query: string; queryKey: string; columns: 
         field: 'stockoutRiskFlag',
         sortable: true,
         width: 110,
-        cellRenderer: (p: { value: boolean }) =>
-          p.value ? '<span class="text-red-400">● At Risk</span>' : '<span class="text-green-400">● OK</span>',
+        cellRenderer: (p: any) =>
+          p.value ? (
+            <span className="text-red-400 font-medium">● At Risk</span>
+          ) : (
+            <span className="text-green-400 font-medium">● OK</span>
+          ),
       },
       { headerName: 'Date', field: 'eventDate', sortable: true, width: 120 },
     ],
@@ -164,53 +168,67 @@ export default function DataTable() {
   const { table = 'transactions' } = useParams<{ table: string }>();
   const config = TABLE_CONFIGS[table] || TABLE_CONFIGS.transactions;
 
-  const [sortModel, setSortModel] = useState<SortModel[]>([]);
-  const [filterModel, setFilterModel] = useState<FilterModel>({});
-  const [pagination, setPagination] = useState({ startRow: 0, endRow: 50 });
-
-  const { data, loading, refetch } = useQuery(
-    require('@/graphql/queries')[config.query],
-    {
-      variables: {
-        startRow: pagination.startRow,
-        endRow: pagination.endRow,
-        sortModel,
-        filterModel,
-      },
-      fetchPolicy: 'network-only',
-    }
-  );
-
-  const rowData = data?.[config.queryKey]?.rows ?? [];
-  const totalCount = data?.[config.queryKey]?.totalCount ?? 0;
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [gridReady, setGridReady] = useState(false);
+  const gridApiRef = useRef<any>(null);
 
   const onGridReady = useCallback((params: GridReadyEvent) => {
+    gridApiRef.current = params.api;
     params.api.sizeColumnsToFit();
+    setGridReady(true);
   }, []);
 
-  const onSortChanged = useCallback(
-    (params: { api: { getSortModel: () => SortModel[] } }) => {
-      setSortModel(params.api.getSortModel());
-    },
-    []
-  );
+  // Update datasource when configuration changes or grid becomes ready
+  useEffect(() => {
+    if (gridApiRef.current && gridReady) {
+      const datasource = {
+        getRows: async (getRowsParams: any) => {
+          setLoading(true);
+          try {
+            // Map AG Grid sortModel to SortInput format expected by GraphQL
+            const sortModel = getRowsParams.sortModel.map((s: any) => ({
+              colId: s.colId,
+              sort: s.sort,
+            }));
 
-  const onFilterChanged = useCallback(
-    (params: { api: { getFilterModel: () => FilterModel } }) => {
-      setFilterModel(params.api.getFilterModel());
-    },
-    []
-  );
+            const { data } = await apolloClient.query({
+              query: config.query,
+              variables: {
+                startRow: getRowsParams.startRow,
+                endRow: getRowsParams.endRow,
+                sortModel,
+                filterModel: getRowsParams.filterModel,
+              },
+              fetchPolicy: 'network-only',
+            });
 
-  const onPaginationChanged = useCallback(
-    (params: PaginationChangedEvent) => {
-      if (params.newPage) {
-        const start = (params.api.paginationGetCurrentPage() ?? 0) * 50;
-        setPagination({ startRow: start, endRow: start + 50 });
+            const result = data?.[config.queryKey] || { rows: [], totalCount: 0 };
+            setTotalCount(result.totalCount);
+            getRowsParams.successCallback(result.rows, result.totalCount);
+          } catch (error) {
+            console.error('Failed to fetch grid rows:', error);
+            getRowsParams.failCallback();
+          } finally {
+            setLoading(false);
+          }
+        },
+      };
+
+      gridApiRef.current.setGridOption('datasource', datasource);
+    }
+  }, [config, gridReady]);
+
+  // Handle loading overlay visibility
+  useEffect(() => {
+    if (gridApiRef.current) {
+      if (loading) {
+        gridApiRef.current.showLoadingOverlay();
+      } else {
+        gridApiRef.current.hideOverlay();
       }
-    },
-    []
-  );
+    }
+  }, [loading]);
 
   const defaultColDef = useMemo(
     () => ({
@@ -235,7 +253,7 @@ export default function DataTable() {
           </p>
         </div>
         <button
-          onClick={() => refetch()}
+          onClick={() => gridApiRef.current?.purgeInfiniteCache()}
           className="px-4 py-2 bg-[#1e293b] border border-[#334155] rounded-lg text-sm hover:bg-[#334155] transition-colors"
         >
           Refresh
@@ -245,7 +263,6 @@ export default function DataTable() {
       {/* AG Grid */}
       <div className="flex-1 ag-theme-alpine-dark">
         <AgGridReact
-          rowData={rowData}
           columnDefs={config.columns}
           defaultColDef={defaultColDef}
           rowModelType="infinite"
@@ -253,14 +270,10 @@ export default function DataTable() {
           maxBlocksInCache={10}
           animateRows={true}
           onGridReady={onGridReady}
-          onSortChanged={onSortChanged}
-          onFilterChanged={onFilterChanged}
-          onPaginationChanged={onPaginationChanged}
           pagination={true}
           paginationPageSize={50}
           suppressRowClickSelection={true}
           enableCellTextSelection={true}
-          loading={loading}
           overlayNoRowsTemplate='<span style="padding: 10px;">No data available</span>'
           getRowId={(params) => {
             const idFields = ['transactionId', 'customerId', 'snapshotId'];

@@ -241,8 +241,8 @@ export default function Copilot() {
 
 // --- Helpers ---
 
-function inferChartType(rows: Record<string, unknown>[], question: string): ChartData | null {
-  if (!rows || rows.length === 0) return null;
+function inferChartType(rows: Record<string, unknown>[], question: string): ChartData | undefined {
+  if (!rows || rows.length === 0) return undefined;
 
   const columns = Object.keys(rows[0]);
   const q = question.toLowerCase();
@@ -251,7 +251,7 @@ function inferChartType(rows: Record<string, unknown>[], question: string): Char
   const stringCols = columns.filter((c) => typeof rows[0][c] === 'string');
   const numericCols = columns.filter((c) => typeof rows[0][c] === 'number');
 
-  if (stringCols.length === 0 || numericCols.length === 0) return null;
+  if (stringCols.length === 0 || numericCols.length === 0) return undefined;
 
   const xCol = stringCols[0];
   const yCol = numericCols[0];

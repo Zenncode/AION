@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs and temp files
+dist/
+dist-ssr/
+*.tsbuildinfo
+*.node.tsbuildinfo
+
+# IDEs and Editors
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Environment Configs
+.env.*.local
+
+# Exceptions (Force-track specific .env.local files)
+!.env.local
+!src/.env.local
+config.bat

@@ -89,7 +89,7 @@ export default function RevenueChart({ data, loading, variant = 'trend' }: Reven
           padding: 12,
           displayColors: false,
           callbacks: {
-            label: (ctx: { parsed: { y: number }; dataset: { label?: string } }) =>
+            label: (ctx: any) =>
               `${ctx.dataset.label}: €${ctx.parsed.y.toLocaleString()}`,
           },
         },
@@ -132,7 +132,7 @@ export default function RevenueChart({ data, loading, variant = 'trend' }: Reven
           </span>
         )}
       </div>
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 relative">
         {chartData && (
           variant === 'breakdown' ? (
             <Bar data={chartData} options={options} />
